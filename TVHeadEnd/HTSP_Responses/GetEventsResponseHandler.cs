@@ -3,6 +3,7 @@ using MediaBrowser.Model.Logging;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TVHeadEnd.HTSP;
@@ -34,6 +35,8 @@ namespace TVHeadEnd.HTSP_Responses
 
         public void handleResponse(HTSMessage response)
         {
+            _logger.Info("[TVHclient] GetEventsResponseHandler.handleResponse: received answer from TVH server\n" + response.ToString()); 
+
             if (response.containsField("events"))
             {
                 IList events = response.getList("events");
@@ -48,12 +51,18 @@ namespace TVHeadEnd.HTSP_Responses
                         int compResult = DateTime.Compare(currentStartDateTimeUTC, _endDateTimeUtc);
                         if (compResult > 0)
                         {
+                            _logger.Info("[TVHclient] GetEventsResponseHandler.handleResponse: start value of event larger query stop value - skipping! \n" 
+                                + "Query start UTC dateTime: " + _startDateTimeUtc + "\n"
+                                + "Query end UTC dateTime:   " + _endDateTimeUtc + "\n"
+                                + "Event start UTC dateTime: " + currentStartDateTimeUTC + "\n"
+                                + currEventMessage.ToString());
                             continue;
                         }
                         pi.StartDate = currentStartDateTimeUTC;
                     }
                     else
                     {
+                        _logger.Info("[TVHclient] GetEventsResponseHandler.handleResponse: no start value for event - skipping! \n" + currEventMessage.ToString());
                         continue;
                     }
 
@@ -64,12 +73,18 @@ namespace TVHeadEnd.HTSP_Responses
                         int compResult = DateTime.Compare(currentEndDateTimeUTC, _startDateTimeUtc);
                         if (compResult < 0)
                         {
+                            _logger.Info("[TVHclient] GetEventsResponseHandler.handleResponse: stop value of event smaller query start value - skipping! \n"
+                                + "Query start UTC dateTime: " + _startDateTimeUtc + "\n"
+                                + "Query end UTC dateTime:   " + _endDateTimeUtc + "\n"
+                                + "Event start UTC dateTime: " + currentEndDateTimeUTC + "\n"
+                                + currEventMessage.ToString());
                             continue;
                         }
                         pi.EndDate = currentEndDateTimeUTC;
                     }
                     else
                     {
+                        _logger.Info("[TVHclient] GetEventsResponseHandler.handleResponse: no stop value for event - skipping! \n" + currEventMessage.ToString());
                         continue;
                     }
 
@@ -683,13 +698,46 @@ namespace TVHeadEnd.HTSP_Responses
                     //pi.Audio - MediaBrowser.Model.LiveTv.ProgramAudio
                     //pi.ProductionYear - int
 
+                    _logger.Info("[TVHclient] GetEventsResponseHandler.handleResponse: add event\n" + currEventMessage.ToString() + "\n" + createPiInfo(pi));
+
                     _result.Add(pi);
                 }
             }
             _dataReady = true;
         }
 
-        public Task<IEnumerable<ProgramInfo>> GetEvents(CancellationToken cancellationToken)
+        private String createPiInfo(ProgramInfo pi)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("\n<ProgramInfo>\n");
+            sb.Append("  Id:                    " + pi.Id + "\n");
+            sb.Append("  StartDate:             " + pi.StartDate + "\n");
+            sb.Append("  EndDate:               " + pi.EndDate + "\n");
+            sb.Append("  ChannelId:             " + pi.ChannelId + "\n");
+            sb.Append("  Name:                  " + pi.Name + "\n");
+            sb.Append("  Overview:              " + pi.Overview + "\n");
+            sb.Append("  EpisodeTitle:          " + pi.EpisodeTitle + "\n");
+            sb.Append("  OriginalAirDate:       " + pi.OriginalAirDate + "\n");
+            sb.Append("  OfficialRating:        " + pi.OfficialRating + "\n");
+            sb.Append("  HasImage:              " + pi.HasImage + "\n");
+            sb.Append("  ImageUrl:              " + pi.ImageUrl + "\n");
+            sb.Append("  IsMovie:               " + pi.IsMovie + "\n");
+            sb.Append("  IsKids:                " + pi.IsKids + "\n");
+            sb.Append("  IsLive:                " + pi.IsLive + "\n");
+            sb.Append("  IsNews:                " + pi.IsNews + "\n");
+            sb.Append("  IsSports:              " + pi.IsSports + "\n");
+            sb.Append("  Genres:\n");
+            List<string> genres = pi.Genres;
+            foreach(string currGenres in genres)
+            {
+              sb.Append("  --> " + currGenres + "\n");
+            }
+            sb.Append("\n");
+
+            return sb.ToString();
+        }
+
+        public Task<IEnumerable<ProgramInfo>> GetEvents(CancellationToken cancellationToken, string channelId)
         {
             return Task.Factory.StartNew<IEnumerable<ProgramInfo>>(() =>
             {
@@ -697,6 +745,7 @@ namespace TVHeadEnd.HTSP_Responses
                 {
                     Thread.Sleep(500);
                 }
+                _logger.Info("[TVHclient] GetEventsResponseHandler.GetEvents: channelId=" + channelId + "  / dataReady=" + _dataReady + "  / cancellationToken.IsCancellationRequested=" + cancellationToken.IsCancellationRequested);
                 return _result;
             });
         }
